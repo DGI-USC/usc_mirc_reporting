@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * @file
+ * Various hook implementations.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function usc_mirc_reporting_menu() {
+  $items = array();
+
+  $items['admin/reports/usc_mirc'] = array(
+    'title' => 'USC MIRC Assets',
+    'page callback' => 'usc_mirc_reporting_page_callback',
+    // TODO: Determine access...  With XACML, pretty much have to be an admin?
+    'access callback' => TRUE,
+    'file' => 'includes/callbacks.inc',
+  );
+
+  return $items;
+}

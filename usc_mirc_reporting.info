@@ -1,0 +1,6 @@
+name = MIRC@SC Reporting
+description = Module to provide reports for USC.
+dependencies[] = usc_mirc
+package = MIRC@SC
+version = 7.x-dev
+core = 7.x
