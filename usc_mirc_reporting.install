@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * @file
+ * Miscellaneous hooks for (un)installation and upgrading.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function usc_mirc_reporting_uninstall() {
+  variable_del('usc_mirc_reporting_report');
+}

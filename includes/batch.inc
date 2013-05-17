@@ -12,27 +12,51 @@
  *   A callback for when the batch finishes. The results['report'] key should
  *   by used to the finished callback should be used to generate output.
  */
-function usc_mirc_reporting_report_batch($finished) {
-  $intervals = array();
+function usc_mirc_reporting_report_batch() {
   $now = time();
-  $intervals[] = strtotime('30 days ago', $now);
-  $intervals[] = strtotime('1 year ago', $now);
-
+  $intervals = array(
+    $now,
+  );
+  for ($i = 0; $i < 12; $i++) {
+    $intervals[] = strtotime("midnight first day of $i months ago", $now);
+  }
 
   // Get the content model URIs we use.
-  $models = array();
-  $models[] = variable_get('usc_mirc_cmodel_access', 'usc:accessCModel');
-  $models[] = variable_get('usc_mirc_cmodel_mezzanine', 'usc:mezzanineCModel');
-  $models[] = variable_get('usc_mirc_cmodel_vro', 'usc:vroCModel');
+  $models = array(
+    variable_get('usc_mirc_cmodel_access', 'usc:accessCModel'),
+    variable_get('usc_mirc_cmodel_mezzanine', 'usc:mezzanineCModel'),
+    variable_get('usc_mirc_cmodel_vro', 'usc:vroCModel'),
+  );
 
   $batch = array(
     'title' => 'USC MIRC Report Generation',
-    'finished' => $finished,
+    'finished' => 'usc_mirc_reporting_save_results',
     'operations' => array(
       array('usc_mirc_reporting_batch_file_sizes_and_type_count', array($intervals, $models)),
-      array('usc_mirc_reporting_batch_title_counts', array($intervals)),
+      array('usc_mirc_reporting_batch_title_counts', array($intervals, $models)),
     ),
+    'file' => format_string('!module_path/!file_path', array(
+      '!module_path' => drupal_get_path('module', 'usc_mirc_reporting'),
+      '!file_path' => 'includes/batch.inc',
+    )),
   );
+
+  return $batch;
+}
+
+/**
+ * Batch "finished" callback.
+ *
+ * Save the report into a variable.
+ */
+function usc_mirc_reporting_save_results($success, $results, $operations) {
+  $report = $results['report'];
+
+  if ($success) {
+    $report['date'] = time();
+    $report['intervals'] = array_keys($report['types']);
+    variable_set('usc_mirc_reporting_report', $report);
+  }
 }
 
 define('USC_MIRC_REPORTING_BATCH_SIZE', 100);
@@ -47,10 +71,10 @@ define('USC_MIRC_REPORTING_BATCH_SIZE', 100);
  * @param mixed $context
  *   An array (or ArrayObject) of batch context. We will set
  *   $context['results']['report']['types'] to contain an array containing:
- *   - type: A string representing the type, one of those included in the
- *     $models parameter or the string "total". In turn, it contains:
- *     - time: Either the string "all_time" or an integer denoting the
- *       beginning of an interval. Contains:
+ *   - time: Either the string "all_time" or an integer denoting the
+ *     beginning of an interval. Contains:
+ *     - type: A string representing the type, one of those included in the
+ *       $models parameter or the string "total". In turn, it contains:
  *       - "size": A string containing the aggregated size.
  *       - "count": An integer containing the count of items.
  */
@@ -60,16 +84,16 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
   $type_to_iterate = array('total');
 
   // Add the models to the types to iterate over (when (un)serializing).
-  $type_to_iterate += $models;
+  $type_to_iterate = array_merge($type_to_iterate, $models);
 
-  $intervals_to_iterate = array('all_time') + $intervals;
+  $intervals_to_iterate = $intervals;//array_merge(array('all_time'), $intervals);
 
   if (!isset($context['sandbox']['offset'])) {
     // Some initialization.
     $context['sandbox']['offset'] = 0;
     foreach ($type_to_iterate as $type) {
       foreach ($intervals_to_iterate as $interval) {
-        $context['results']['report']['types'][$type][$interval] = array(
+        $context['results']['report']['types'][$interval][$type] = array(
           'size' => gmp_init(0, 10),
           'count' => 0,
         );
@@ -81,12 +105,12 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
     $context['sandbox']['offset'] += USC_MIRC_REPORTING_BATCH_SIZE;
 
     // Unserialize our big numbers.
-    foreach ($type_to_iterate as $type) {
-      $type_report = &$context['results']['report']['types'][$type];
-      foreach ($intervals_to_iterate as $interval) {
-        $type_report[$interval]['size'] = gmp_init($type_report[$interval]['size'], 10);
+    foreach ($context['results']['report']['types'] as $interval => &$type_report) {
+      foreach ($type_to_iterate as $type) {
+        $type_report[$type]['size'] = gmp_init($type_report[$type]['size'], 10);
       }
     }
+    unset($type_report);
   }
 
   // Query for all objects, ordered by created date and offset by the value
@@ -110,7 +134,7 @@ OFFSET $offset
 LIMIT $limit
 EOQ;
 
-  $tuque = islandora_get_tuque_connection():
+  $tuque = islandora_get_tuque_connection();
   $results = $tuque->repository->ri->sparqlQuery($query);
 
   $type_report = &$context['results']['report']['types'];
@@ -118,9 +142,9 @@ EOQ;
     $object = islandora_object_load($result['object']['value']);
 
     $intersected_models = array_intersect($models, $object->models);
-    if (!empty($intersected_models) {
+    if (!empty($intersected_models)) {
       if (count($intersected_models) > 1) {
-        watchdog('usc_mirc_reporting', 'Somehow have multiple models on @pid: @models. Skipping in report.', array(
+        watchdog('usc_mirc_reporting', 'Somehow have multiple video models on @pid: @models. Skipping in report.', array(
           '@pid' => $object->id,
           '@models' => implode(', ', $intersected_models),
         ));
@@ -130,25 +154,19 @@ EOQ;
       // Should have exactly one model... Let's get it!
       $type = reset($intersected_models);
 
-      // Increment the count.
-      $type_report[$type]['all_time']['count']++;
-
       // Get all the sizes (PBCore description doc could contain multiple).
-      $sizes = usc_mirc_reporting_get_size_from_pbcore($object['PBCORE']);
-      foreach ($sizes as $size) {
+      $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
+      foreach ($sizes as $size_from_pbcore) {
         // Parse once... Should be a little more efficient when adding again
         // later?
-        $size = gmp_init($size, 10);
-
-        // Add to the total.
-        $type_report[$type]['all_time']['size'] = gmp_add($type_report[$type]['all_time']['size'], $size);
+        $size = gmp_init($size_from_pbcore, 10);
 
         // Conditionally add to the date groups.
         $created_date = strtotime($result['date']['value']);
         foreach ($intervals as $interval) {
-          if ($created_date > $interval) {
-            $type_report[$type][$interval]['size'] = gmp_add($type_report[$type][$interval]['size'], $size);
-            $type_report[$type][$interval]['count']++;
+          if ($created_date <= $interval) {
+            $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
+            $type_report[$interval][$type]['count']++;
           }
         }
       }
@@ -164,13 +182,13 @@ EOQ;
     // If we didn't get a full set of results, we're finished.
     $context['finished'] = 1;
 
-    // Accumulate our result into the "totals".
-    foreach ($models as $model) {
-      foreach ($intervals_to_iterate as $interval) {
-        $type_report['total'][$interval]['size'] = gmp_add($type_report['total'][$interval]['size'], $type_report[$model][$interval]['size']);
-        $type_report['total'][$interval]['count'] += $type_report[$model][$interval]['count'];
+    foreach ($type_report as $interval => &$report) {
+      foreach ($models as $model) {
+        $report['total']['size'] = gmp_add($report['total']['size'], $report[$model]['size']);
+        $report['total']['count'] += $report[$model]['count'];
       }
     }
+    unset($report);
   }
   else {
     // Otherwise, keep on trucking (we'll increment the offset next time
@@ -178,12 +196,18 @@ EOQ;
     $context['finished'] = 0;
   }
 
+  $context['message'] = t('Got sizes from %offset to %end.', array(
+    '%offset' => $context['sandbox']['offset'],
+    '%end' => ($context['sandbox']['offset'] + count($results))
+  ));
+
   // Serialize the large numbers, so we can can use them next time.
-  foreach ($type_to_iterate as $type) {
-    foreach ($intervals_to_iterate as $interval) {
-      $type_report[$type][$interval]['size'] = gmp_strval($type_report[$type][$interval]['size'], 10);
+  foreach ($type_report as $interval => &$report) {
+    foreach ($type_to_iterate as $type) {
+      $report[$type]['size'] = gmp_strval($report[$type]['size'], 10);
     }
   }
+  unset($report);
 }
 
 /**
@@ -205,7 +229,10 @@ function usc_mirc_reporting_get_sizes_from_pbcore(AbstractDatastream $pbcore_dat
     $file_size_xpath = '//pb:instantiationFileSize[@unitsOfMeasure="bytes"]';
     foreach((array)$pbcore_simplexml->xpath($file_size_xpath) as $size) {
       $size = (string)$size;
-      $to_return[] = trim($size);
+      $size = trim($size);
+      if (!empty($size)) {
+        $to_return[] = $size;
+      }
     }
   }
   else {
@@ -223,6 +250,58 @@ function usc_mirc_reporting_get_sizes_from_pbcore(AbstractDatastream $pbcore_dat
  * @param mixed $context
  *   An array (or ArrayObject) of batch context.
  */
-function usc_mirc_reporting_batch_title_counts(&$context) {
+function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
+  list($access, $mezzanine, $vro) = $models;
+  $relationship = 'isDerivativeOf';
+  $date_filters = array(
+    //'all_time' => 'true',
+    //$now => format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
+    //  '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $now),
+    //)),
+  );
+  foreach ($intervals as $interval) {
+    $date_filters[$interval] = format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
+      '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
+    ));
+  }
+  $access_filters = array(
+    //'total' => 'true',
+    'accessible' => '(!bound(?user) && !bound(?role))',
+    'in_progress' => '(bound(?user) || bound(?role))',
+  );
 
+  $tuque = islandora_get_tuque_connection();
+  foreach ($date_filters as $interval => $date_filter) {
+    $interval_report = &$context['results']['report']['titles'][$interval];
+
+    foreach ($access_filters as $type => $access_filter) {
+      $filter = format_string('FILTER(!date_filter && !access_filter)', array(
+        '!date_filter' => $date_filter,
+        '!access_filter' => $access_filter,
+      ));
+
+      $query = <<<EOQ
+PREFIX islandora-rels-ext: <http://islandora.ca/ontology/relsext#>
+SELECT ?object
+WHERE {
+  ?object <fedora-model:hasModel> <info:fedora/$vro> .
+  ?mezz <fedora-rels-ext:$relationship> ?object ;
+        <fedora-model:hasModel> <info:fedora/$mezzanine> .
+  ?access <fedora-rels-ext:$relationship> ?mezz ;
+          <fedora-view:lastModifiedDate> ?access_date .
+  OPTIONAL{?access islandora-rels-ext:isViewableByUser ?user}
+  OPTIONAL{?access islandora-rels-ext:isViewableByRole ?role}
+  $filter
+}
+EOQ;
+      // XXX: Would probably be better done with a "count" query; however,
+      // they're not supported by Tuque, as of writing this.
+      $results = $tuque->repository->ri->sparqlQuery($query);
+      $interval_report[$type] = count($results);
+    }
+
+    // Unset, just in this is made to iterate more.
+    unset($interval_report['total']);
+    $interval_report['total'] = array_sum($interval_report);
+  }
 }

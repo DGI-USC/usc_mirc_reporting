@@ -13,10 +13,28 @@ function usc_mirc_reporting_menu() {
 
   $items['admin/reports/usc_mirc'] = array(
     'title' => 'USC MIRC Assets',
-    'page callback' => 'usc_mirc_reporting_page_callback',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('usc_mirc_reporting_form'),
     // TODO: Determine access...  With XACML, pretty much have to be an admin?
     'access callback' => TRUE,
-    'file' => 'includes/callbacks.inc',
+    'file' => 'includes/report.form.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function usc_mirc_reporting_theme() {
+  $items = array();
+
+  $items['usc_mirc_reporting_report_table'] = array(
+    'arguments' => array(
+      'report_structure' => array(),
+    ),
+    'file' => 'theme/theme.inc',
+    'template' => 'theme/usc-mirc-reporting-report-table',
   );
 
   return $items;
