@@ -144,6 +144,7 @@ LIMIT $limit
 EOQ;
 
   $tuque = islandora_get_tuque_connection();
+  dsm($query);
   $results = $tuque->repository->ri->sparqlQuery($query);
 
   $type_report = &$context['results']['report']['types'];
@@ -163,19 +164,21 @@ EOQ;
       // Should have exactly one model... Let's get it!
       $type = reset($intersected_models);
 
-      // Get all the sizes (PBCore description doc could contain multiple).
-      $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
-      foreach ($sizes as $size_from_pbcore) {
-        // Parse once... Should be a little more efficient when adding again
-        // later?
-        $size = gmp_init($size_from_pbcore, 10);
 
         // Conditionally add to the date groups.
-        $created_date = strtotime($result['date']['value']);
-        foreach ($intervals as $interval) {
-          if ($created_date <= $interval) {
+      $created_date = strtotime($result['date']['value']);
+      foreach ($intervals as $interval) {
+	if ($created_date <= $interval) {
+	  $type_report[$interval][$type]['count']++;
+
+	  // Get all the sizes (PBCore description doc could contain multiple).
+	  $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
+	  foreach ($sizes as $size_from_pbcore) {
+	    // Parse once... Should be a little more efficient when adding again
+	    // later?
+	    $size = gmp_init($size_from_pbcore, 10);
+
             $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
-            $type_report[$interval][$type]['count']++;
           }
         }
       }
