@@ -90,7 +90,7 @@ function usc_mirc_reporting_deliver_csv($page_result) {
   drupal_add_http_header('Cache-Control', 'no-cache');
   drupal_add_http_header('Pragma', 'no-cache');
   drupal_add_http_header('Content-Type', 'text/csv; charset=utf8');
-  drupal_add_http_header('Content-Disposition', "attachment;filename=$download_name";
+  drupal_add_http_header('Content-Disposition', "attachment;filename=$download_name");
   drupal_add_http_header('Content-Length', $length);
 
   fpassthru($csv_file);
