@@ -9,32 +9,35 @@
  * Implements template_preprocess_HOOK().
  */
 function template_preprocess_usc_mirc_reporting_report_table(array &$vars) {
-  $o['header'] = array(
-    t('Sample Point'),
-    t('All assets'),
-    t('Access copies'),
-    t('Mezzanines'),
-    t('Preservation masters'),
-    t('Accessible titles'),
-    t('In progress titles'),
-    t('Total titles'),
-  );
-  $o['colgroups'] = array(
-    array(
+  $o = array(
+    'header' => array(
+      t('Sample Point'),
+      t('All assets'),
+      t('Access copies'),
+      t('Mezzanines'),
+      t('Preservation masters'),
+      t('Accessible titles'),
+      t('In progress titles'),
+      t('Total titles'),
+    ),
+    'colgroups' => array(
       array(
-        'class' => array('sample-point'),
-      ),
-      array(
-        'class' => array('sizes-per-type'),
-        'span' => 4,
-      ),
-      array(
-        'class' => array('title-counts'),
-        'span' => 3,
+        array(
+          'class' => array('sample-point'),
+        ),
+        array(
+          'class' => array('sizes-per-type'),
+          'span' => 4,
+        ),
+        array(
+          'class' => array('title-counts'),
+          'span' => 3,
+        ),
       ),
     ),
+    'rows' => array(),
   );
-  $o['rows'] = array();
+
   foreach ($vars['report_structure']['intervals'] as $interval) {
     $row = array(
       format_date($interval, 'short'),

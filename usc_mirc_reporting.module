@@ -19,6 +19,15 @@ function usc_mirc_reporting_menu() {
     'access callback' => TRUE,
     'file' => 'includes/report.form.inc',
   );
+  $items['admin/reports/usc_mirc/csv'] = array(
+    'title' => 'USC MIRC CSV Download',
+    'page callback' => 'usc_mirc_reporting_build_csv_structure',
+    'delivery callback' => 'usc_mirc_reporting_deliver_csv',
+    // TODO: Determine access...  With XACML, pretty much have to be an admin?
+    'access callback' => 'usc_mirc_reporting_csv_access',
+    'file' => 'includes/report.csv.inc',
+    'type' => MENU_CALLBACK,
+  );
 
   return $items;
 }
@@ -38,4 +47,11 @@ function usc_mirc_reporting_theme() {
   );
 
   return $items;
+}
+
+/**
+ * Access callback for the CSV output callback.
+ */
+function usc_mirc_reporting_csv_access() {
+  return TRUE && variable_get('usc_mirc_reporting_report', FALSE);
 }

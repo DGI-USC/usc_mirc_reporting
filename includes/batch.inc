@@ -6,21 +6,21 @@
  */
 
 /**
+ * The number of objects to examine for file sizes at a time.
+ */
+define('USC_MIRC_REPORTING_BATCH_SIZE', 100);
+
+/**
  * Setup the batch to calculate file sizes and the number of title.
  *
- * @param callable $finished
- *   A callback for when the batch finishes. The results['report'] key should
- *   by used to the finished callback should be used to generate output.
+ * @param array $intervals
+ *   An array of UNIX timestamps at which to sample.
+ *
+ * @return array
+ *   An array containing the definition for a Drupal batch. Can pass directly
+ *   to batch_set().
  */
-function usc_mirc_reporting_report_batch() {
-  $now = time();
-  $intervals = array(
-    $now,
-  );
-  for ($i = 0; $i < 12; $i++) {
-    $intervals[] = strtotime("midnight first day of $i months ago", $now);
-  }
-
+function usc_mirc_reporting_report_batch(array $intervals) {
   // Get the content model URIs we use.
   $models = array(
     variable_get('usc_mirc_cmodel_access', 'usc:accessCModel'),
@@ -58,8 +58,6 @@ function usc_mirc_reporting_save_results($success, $results, $operations) {
     variable_set('usc_mirc_reporting_report', $report);
   }
 }
-
-define('USC_MIRC_REPORTING_BATCH_SIZE', 100);
 
 /**
  * Batch operation to report on file sizes.
