@@ -16,7 +16,7 @@ function usc_mirc_reporting_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('usc_mirc_reporting_form'),
     // TODO: Determine access...  With XACML, pretty much have to be an admin?
-    'access callback' => TRUE,
+    'access arguments' => array('access site reports'),
     'file' => 'includes/report.form.inc',
   );
   $items['admin/reports/usc_mirc/csv'] = array(
@@ -53,5 +53,5 @@ function usc_mirc_reporting_theme($existing, $type, $theme, $path) {
  * Access callback for the CSV output callback.
  */
 function usc_mirc_reporting_csv_access() {
-  return TRUE && variable_get('usc_mirc_reporting_report', FALSE);
+  return user_access('access site reports') && variable_get('usc_mirc_reporting_report', FALSE);
 }
