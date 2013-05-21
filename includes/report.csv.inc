@@ -84,7 +84,7 @@ function usc_mirc_reporting_deliver_csv($page_result) {
   fseek($csv_file, 0);
 
   $download_name = format_string('report.!timestamp.csv', array(
-    '!timestamp' => $report['date'],
+    '!timestamp' => $page_result['date'],
   ));
 
   drupal_add_http_header('Cache-Control', 'no-cache');
