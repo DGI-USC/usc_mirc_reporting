@@ -7,6 +7,13 @@
 
 /**
  * Build the CSV row structure.
+ *
+ * @return array
+ *   An array containing three keys:
+ *   - header: An array containing the header strings (the first line).
+ *   - rows: An array containing the data for the rows of the CSV.
+ *   - date: Either an integer or a string indicating the date when the report
+ *     was generated, to differentiate the filename returned.
  */
 function usc_mirc_reporting_build_csv_structure() {
   $report = variable_get('usc_mirc_reporting_report', FALSE);
@@ -29,7 +36,6 @@ function usc_mirc_reporting_build_csv_structure() {
     'rows' => array(),
     'date' => $report['date'],
   );
-
 
   foreach ($report['intervals'] as $interval) {
     $row = array(
@@ -55,6 +61,15 @@ function usc_mirc_reporting_build_csv_structure() {
 
 /**
  * Delivery callback used to provide the CSV download.
+ *
+ * Outputs a CSV file for download.
+ *
+ * @param array $page_result
+ *   An array containing three keys:
+ *   - header: An array containing the header strings (the first line).
+ *   - rows: An array containing the data for the rows of the CSV.
+ *   - date: Either an integer or a string indicating the date when the report
+ *     was generated, to differentiate the filename returned.
  */
 function usc_mirc_reporting_deliver_csv($page_result) {
   module_load_include('inc', 'phpexcel');
@@ -68,9 +83,14 @@ function usc_mirc_reporting_deliver_csv($page_result) {
   $length = ftell($csv_file);
   fseek($csv_file, 0);
 
+  $download_name = format_string('report.!timestamp.csv', array(
+    '!timestamp' => $report['date'],
+  ));
+
   drupal_add_http_header('Cache-Control', 'no-cache');
+  drupal_add_http_header('Pragma', 'no-cache');
   drupal_add_http_header('Content-Type', 'text/csv; charset=utf8');
-  drupal_add_http_header('Content-Disposition', 'attachment;filename=report.'. $page_result['date'] .'.csv');
+  drupal_add_http_header('Content-Disposition', "attachment;filename=$download_name";
   drupal_add_http_header('Content-Length', $length);
 
   fpassthru($csv_file);

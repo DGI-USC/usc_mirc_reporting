@@ -32,8 +32,20 @@ function usc_mirc_reporting_report_batch(array $intervals) {
     'title' => 'USC MIRC Report Generation',
     'finished' => 'usc_mirc_reporting_save_results',
     'operations' => array(
-      array('usc_mirc_reporting_batch_file_sizes_and_type_count', array($intervals, $models)),
-      array('usc_mirc_reporting_batch_title_counts', array($intervals, $models)),
+      array(
+        'usc_mirc_reporting_batch_file_sizes_and_type_count',
+        array(
+          $intervals,
+          $models,
+        ),
+      ),
+      array(
+        'usc_mirc_reporting_batch_title_counts',
+        array(
+          $intervals,
+          $models,
+        ),
+      ),
     ),
     'file' => format_string('!module_path/!file_path', array(
       '!module_path' => drupal_get_path('module', 'usc_mirc_reporting'),
@@ -84,8 +96,7 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
   // Add the models to the types to iterate over (when (un)serializing).
   $type_to_iterate = array_merge($type_to_iterate, $models);
 
-  $intervals_to_iterate = $intervals;//array_merge(array('all_time'), $intervals);
-
+  $intervals_to_iterate = $intervals;
   if (!isset($context['sandbox']['offset'])) {
     // Some initialization.
     $context['sandbox']['offset'] = 0;
@@ -196,7 +207,7 @@ EOQ;
 
   $context['message'] = t('Got sizes from %offset to %end.', array(
     '%offset' => $context['sandbox']['offset'],
-    '%end' => ($context['sandbox']['offset'] + count($results))
+    '%end' => ($context['sandbox']['offset'] + count($results)),
   ));
 
   // Serialize the large numbers, so we can can use them next time.
@@ -225,8 +236,8 @@ function usc_mirc_reporting_get_sizes_from_pbcore(AbstractDatastream $pbcore_dat
   if ($pbcore_simplexml) {
     $pbcore_simplexml->registerXPathNamespace('pb', 'http://www.pbcore.org/PBCore/PBCoreNamespace.html');
     $file_size_xpath = '//pb:instantiationFileSize[@unitsOfMeasure="bytes"]';
-    foreach((array)$pbcore_simplexml->xpath($file_size_xpath) as $size) {
-      $size = (string)$size;
+    foreach ((array) $pbcore_simplexml->xpath($file_size_xpath) as $size) {
+      $size = (string) $size;
       $size = trim($size);
       if (!empty($size)) {
         $to_return[] = $size;
@@ -251,19 +262,13 @@ function usc_mirc_reporting_get_sizes_from_pbcore(AbstractDatastream $pbcore_dat
 function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
   list($access, $mezzanine, $vro) = $models;
   $relationship = 'isDerivativeOf';
-  $date_filters = array(
-    //'all_time' => 'true',
-    //$now => format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
-    //  '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $now),
-    //)),
-  );
+  $date_filters = array();
   foreach ($intervals as $interval) {
     $date_filters[$interval] = format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
       '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
     ));
   }
   $access_filters = array(
-    //'total' => 'true',
     'accessible' => '(!bound(?user) && !bound(?role))',
     'in_progress' => '(bound(?user) || bound(?role))',
   );

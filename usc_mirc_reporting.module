@@ -35,15 +35,15 @@ function usc_mirc_reporting_menu() {
 /**
  * Implements hook_theme().
  */
-function usc_mirc_reporting_theme() {
+function usc_mirc_reporting_theme($existing, $type, $theme, $path) {
   $items = array();
 
   $items['usc_mirc_reporting_report_table'] = array(
-    'arguments' => array(
+    'variables' => $existing['table']['variables'] + array(
       'report_structure' => array(),
     ),
     'file' => 'theme/theme.inc',
-    'template' => 'theme/usc-mirc-reporting-report-table',
+    'function' => 'theme_table',
   );
 
   return $items;
