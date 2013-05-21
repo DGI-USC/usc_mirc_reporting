@@ -144,7 +144,6 @@ LIMIT $limit
 EOQ;
 
   $tuque = islandora_get_tuque_connection();
-  //dsm($query);
   $results = $tuque->repository->ri->sparqlQuery($query);
 
   $type_report = &$context['results']['report']['types'];
