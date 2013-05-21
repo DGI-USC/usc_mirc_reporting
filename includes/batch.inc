@@ -144,7 +144,7 @@ LIMIT $limit
 EOQ;
 
   $tuque = islandora_get_tuque_connection();
-  dsm($query);
+  //dsm($query);
   $results = $tuque->repository->ri->sparqlQuery($query);
 
   $type_report = &$context['results']['report']['types'];
@@ -267,13 +267,13 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
   $relationship = 'isDerivativeOf';
   $date_filters = array();
   foreach ($intervals as $interval) {
-    $date_filters[$interval] = format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
+    $date_filters[$interval] = format_string('(bound(?access) && ?access_date <= "!created_date"^^<xsd:dateTime>) || (!bound(?access) && ?vro_date <= "!created_date"^^<xsd:dateTime>)', array(
       '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
     ));
   }
   $access_filters = array(
-    'accessible' => '(!bound(?user) && !bound(?role))',
-    'in_progress' => '(bound(?user) || bound(?role))',
+    'accessible' => 'bound(?access) && !bound(?policy_datastream)',
+    'in_progress' => '!bound(?access) || bound(?policy_datastream)',
   );
 
   $tuque = islandora_get_tuque_connection();
@@ -281,7 +281,7 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
     $interval_report = &$context['results']['report']['titles'][$interval];
 
     foreach ($access_filters as $type => $access_filter) {
-      $filter = format_string('FILTER(!date_filter && !access_filter)', array(
+      $filter = format_string('FILTER((!date_filter) && (!access_filter))', array(
         '!date_filter' => $date_filter,
         '!access_filter' => $access_filter,
       ));
@@ -290,13 +290,18 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
 PREFIX islandora-rels-ext: <http://islandora.ca/ontology/relsext#>
 SELECT ?object
 WHERE {
-  ?object <fedora-model:hasModel> <info:fedora/$vro> .
-  ?mezz <fedora-rels-ext:$relationship> ?object ;
-        <fedora-model:hasModel> <info:fedora/$mezzanine> .
-  ?access <fedora-rels-ext:$relationship> ?mezz ;
-          <fedora-view:lastModifiedDate> ?access_date .
-  OPTIONAL{?access islandora-rels-ext:isViewableByUser ?user}
-  OPTIONAL{?access islandora-rels-ext:isViewableByRole ?role}
+  ?object <fedora-model:hasModel> <info:fedora/$vro> ;
+          <fedora-model:createdDate> ?vro_date .
+  OPTIONAL {
+    ?mezz <fedora-rels-ext:$relationship> ?object ;
+	  <fedora-model:hasModel> <info:fedora/$mezzanine> .
+    ?access <fedora-rels-ext:$relationship> ?mezz ;
+	    <fedora-view:lastModifiedDate> ?access_date .
+    OPTIONAL{
+      ?access <fedora-view:disseminates> ?policy_datastream .
+      ?policy_datastream <fedora-view:disseminationType> <info:fedora/*/POLICY>
+    }
+  }
   $filter
 }
 EOQ;
