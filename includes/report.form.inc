@@ -55,10 +55,20 @@ function usc_mirc_reporting_form_submit(&$form, &$form_state) {
 
   if ($triggering_element_id == 'edit-regenerate') {
     module_load_include('inc', 'usc_mirc_reporting', 'includes/batch');
-    batch_set(usc_mirc_reporting_report_batch());
+
+    $now = time();
+    $intervals = array(
+      $now,
+    );
+    for ($i = 0; $i < 12; $i++) {
+      $intervals[] = strtotime("midnight first day of $i months ago", $now);
+    }
+
+    batch_set(usc_mirc_reporting_report_batch($intervals));
   }
   elseif ($triggering_element_id == 'edit-download-csv') {
     // TODO: Cause downoad of a CSV copy of the results.
+    $form_state['redirect'] = 'admin/reports/usc_mirc/csv';
   }
   elseif ($triggering_element_id == 'edit-delete-report') {
     variable_del('usc_mirc_reporting_report');
