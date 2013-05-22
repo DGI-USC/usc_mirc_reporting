@@ -163,19 +163,20 @@ EOQ;
       // Should have exactly one model... Let's get it!
       $type = reset($intersected_models);
 
-      // Get all the sizes (PBCore description doc could contain multiple).
-      $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
-      foreach ($sizes as $size_from_pbcore) {
-        // Parse once... Should be a little more efficient when adding again
-        // later?
-        $size = gmp_init($size_from_pbcore, 10);
+      // Conditionally add to the date groups.
+      $created_date = strtotime($result['date']['value']);
+      foreach ($intervals as $interval) {
+        if ($created_date <= $interval) {
+          $type_report[$interval][$type]['count']++;
 
-        // Conditionally add to the date groups.
-        $created_date = strtotime($result['date']['value']);
-        foreach ($intervals as $interval) {
-          if ($created_date <= $interval) {
+          // Get all the sizes (PBCore description doc could contain multiple).
+          $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
+          foreach ($sizes as $size_from_pbcore) {
+            // Parse once... Should be a little more efficient when adding again
+            // later?
+            $size = gmp_init($size_from_pbcore, 10);
+
             $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
-            $type_report[$interval][$type]['count']++;
           }
         }
       }
@@ -261,24 +262,19 @@ function usc_mirc_reporting_get_sizes_from_pbcore(AbstractDatastream $pbcore_dat
  */
 function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
   list($access, $mezzanine, $vro) = $models;
-  $relationship = 'isDerivativeOf';
-  $date_filters = array();
-  foreach ($intervals as $interval) {
-    $date_filters[$interval] = format_string('?access_date <= "!created_date"^^<xsd:dateTime>', array(
-      '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
-    ));
-  }
+  $relationship = variable_get('usc_mirc_relationship', 'isDerivativeOf');
+
   $access_filters = array(
-    'accessible' => '(!bound(?user) && !bound(?role))',
-    'in_progress' => '(bound(?user) || bound(?role))',
+    'accessible' => 'bound(?permissive_policy_datastream) || !bound(?policy_datastream)',
+    'in_progress' => '!bound(?permissive_policy_datastream) && bound(?policy_datastream)',
   );
 
   $tuque = islandora_get_tuque_connection();
-  foreach ($date_filters as $interval => $date_filter) {
+  foreach ($intervals as $interval) {
     $interval_report = &$context['results']['report']['titles'][$interval];
 
     foreach ($access_filters as $type => $access_filter) {
-      $filter = format_string('FILTER(!date_filter && !access_filter)', array(
+      $filter = format_string('FILTER((!date_filter) && (!access_filter))', array(
         '!date_filter' => $date_filter,
         '!access_filter' => $access_filter,
       ));
@@ -287,16 +283,45 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
 PREFIX islandora-rels-ext: <http://islandora.ca/ontology/relsext#>
 SELECT ?object
 WHERE {
-  ?object <fedora-model:hasModel> <info:fedora/$vro> .
-  ?mezz <fedora-rels-ext:$relationship> ?object ;
-        <fedora-model:hasModel> <info:fedora/$mezzanine> .
-  ?access <fedora-rels-ext:$relationship> ?mezz ;
-          <fedora-view:lastModifiedDate> ?access_date .
-  OPTIONAL{?access islandora-rels-ext:isViewableByUser ?user}
-  OPTIONAL{?access islandora-rels-ext:isViewableByRole ?role}
-  $filter
+  ?object <fedora-model:hasModel> <info:fedora/$vro> ;
+          <fedora-model:createdDate> ?vro_date .
+  OPTIONAL {
+    ?mezz <fedora-rels-ext:$relationship> ?object ;
+          <fedora-model:hasModel> <info:fedora/$mezzanine> .
+    ?access <fedora-rels-ext:$relationship> ?mezz ;
+            <fedora-model:hasModel> <info:fedora/$access> .
+    {
+      ?access <fedora-view:lastModifiedDate> ?access_date .
+    }
+    UNION {
+      ?access <fedora-model:createdDate> ?access_date .
+    }
+
+    OPTIONAL {
+      ?access <fedora-view:disseminates> ?permissive_policy_datastream .
+      ?permissive_policy_datastream <fedora-view:disseminationType> <info:fedora/*/POLICY> .
+      {
+        ?access islandora-rels-ext:isViewableByUser 'anonymous'
+      }
+      UNION {
+        ?access islandora-rels-ext:isViewableByRole 'anonymous user'
+      }
+    }
+    OPTIONAL {
+      ?access <fedora-view:disseminates> ?policy_datastream .
+      ?policy_datastream <fedora-view:disseminationType> <info:fedora/*/POLICY>
+    }
+    FILTER(?access_date <= "!created_date"^^<xsd:dateTime>)
+  }
+  FILTER(?vro_date <= "!created_date"^^<xsd:dateTime>)
+  FILTER($access_filter)
 }
 EOQ;
+
+      $query = format_string($query, array(
+        '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
+      ));
+
       // XXX: Would probably be better done with a "count" query; however,
       // they're not supported by Tuque, as of writing this.
       $results = $tuque->repository->ri->sparqlQuery($query);
