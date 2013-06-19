@@ -8,7 +8,7 @@
 /**
  * The number of objects to examine for file sizes at a time.
  */
-define('USC_MIRC_REPORTING_BATCH_SIZE', 100);
+define('USC_MIRC_REPORTING_BATCH_SIZE', 25);
 
 /**
  * Setup the batch to calculate file sizes and the number of title.
@@ -51,6 +51,8 @@ function usc_mirc_reporting_report_batch(array $intervals) {
       '!module_path' => drupal_get_path('module', 'usc_mirc_reporting'),
       '!file_path' => 'includes/batch.inc',
     )),
+    'init_message' => 'Starting batch and processing first operation...',
+    'progress_message' => 'Estimated time: @estimate<br/>Elapsed time: @elapsed',
   );
 
   return $batch;
@@ -96,6 +98,22 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
   // Add the models to the types to iterate over (when (un)serializing).
   $type_to_iterate = array_merge($type_to_iterate, $models);
 
+  // Setup the query.
+  list($access, $mezzanine, $vro) = $models;
+  $query = <<<EOQ
+SELECT ?object ?date
+WHERE {
+  {?object <fedora-model:hasModel> <info:fedora/$vro>}
+  UNION
+  {?object <fedora-model:hasModel> <info:fedora/$mezzanine>}
+  UNION
+  {?object <fedora-model:hasModel> <info:fedora/$access>}
+  ?object <fedora-model:createdDate> ?date ;
+          <fedora-view:disseminates> [<fedora-view:disseminationType> <info:fedora/*/PBCORE>]
+}
+EOQ;
+  $tuque = islandora_get_tuque_connection();
+
   $intervals_to_iterate = $intervals;
   if (!isset($context['sandbox']['offset'])) {
     // Some initialization.
@@ -108,6 +126,7 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
         );
       }
     }
+    $context['sandbox']['total_count'] = $tuque->repository->ri->countQuery($query, 'sparql');
   }
   else {
     // Increment our offset, to get the next set.
@@ -126,24 +145,12 @@ function usc_mirc_reporting_batch_file_sizes_and_type_count($intervals, $models,
   // stored in the context.
   $offset = $context['sandbox']['offset'];
   $limit = USC_MIRC_REPORTING_BATCH_SIZE;
-  list($access, $mezzanine, $vro) = $models;
-  $query = <<<EOQ
-SELECT ?object ?date
-WHERE {
-  {?object <fedora-model:hasModel> <info:fedora/$vro>}
-  UNION
-  {?object <fedora-model:hasModel> <info:fedora/$mezzanine>}
-  UNION
-  {?object <fedora-model:hasModel> <info:fedora/$access>}
-  ?object <fedora-model:createdDate> ?date ;
-          <fedora-view:disseminates> [<fedora-view:disseminationType> <info:fedora/*/PBCORE>]
-}
+  $query .= <<<EOQO
 ORDER BY ?date
 OFFSET $offset
 LIMIT $limit
-EOQ;
+EOQO;
 
-  $tuque = islandora_get_tuque_connection();
   $results = $tuque->repository->ri->sparqlQuery($query);
 
   $type_report = &$context['results']['report']['types'];
@@ -203,11 +210,12 @@ EOQ;
   else {
     // Otherwise, keep on trucking (we'll increment the offset next time
     // around).
-    $context['finished'] = 0;
+    $current = $context['sandbox']['offset'] + USC_MIRC_REPORTING_BATCH_SIZE;
+    $context['finished'] = $current / (1.0 * $context['sandbox']['total_count']);
   }
 
   $context['message'] = t('Got sizes from %offset to %end.', array(
-    '%offset' => $context['sandbox']['offset'],
+    '%offset' => ($context['sandbox']['offset'] + 1),
     '%end' => ($context['sandbox']['offset'] + count($results)),
   ));
 
@@ -265,8 +273,8 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
   $relationship = variable_get('usc_mirc_relationship', 'isDerivativeOf');
 
   $access_filters = array(
-    'accessible' => 'bound(?permissive_policy_datastream) || !bound(?policy_datastream)',
-    'in_progress' => '!bound(?permissive_policy_datastream) && bound(?policy_datastream)',
+    'accessible' => 'bound(?access) && (bound(?permissive_policy_datastream) || !bound(?policy_datastream))',
+    'in_progress' => '!bound(?access) || (!bound(?permissive_policy_datastream) && bound(?policy_datastream))',
   );
 
   $tuque = islandora_get_tuque_connection();
@@ -274,11 +282,6 @@ function usc_mirc_reporting_batch_title_counts($intervals, $models, &$context) {
     $interval_report = &$context['results']['report']['titles'][$interval];
 
     foreach ($access_filters as $type => $access_filter) {
-      $filter = format_string('FILTER((!date_filter) && (!access_filter))', array(
-        '!date_filter' => $date_filter,
-        '!access_filter' => $access_filter,
-      ));
-
       $query = <<<EOQ
 PREFIX islandora-rels-ext: <http://islandora.ca/ontology/relsext#>
 SELECT ?object
@@ -322,10 +325,7 @@ EOQ;
         '!created_date' => gmdate('Y-m-d\TH:i:s\Z', $interval),
       ));
 
-      // XXX: Would probably be better done with a "count" query; however,
-      // they're not supported by Tuque, as of writing this.
-      $results = $tuque->repository->ri->sparqlQuery($query);
-      $interval_report[$type] = count($results);
+      $interval_report[$type] = $tuque->repository->ri->countQuery($query, 'sparql');
     }
 
     // Unset, just in this is made to iterate more.
