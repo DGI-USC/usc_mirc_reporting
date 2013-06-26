@@ -174,16 +174,19 @@ EOQO;
       $created_date = strtotime($result['date']['value']);
       foreach ($intervals as $interval) {
         if ($created_date <= $interval) {
-          $type_report[$interval][$type]['count']++;
-
           // Get all the sizes (PBCore description doc could contain multiple).
           $sizes = usc_mirc_reporting_get_sizes_from_pbcore($object['PBCORE']);
-          foreach ($sizes as $size_from_pbcore) {
-            // Parse once... Should be a little more efficient when adding again
-            // later?
-            $size = gmp_init($size_from_pbcore, 10);
+          if ($sizes) {
+            // Only count an asset if we have a size for it.
+            $type_report[$interval][$type]['count']++;
 
-            $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
+            foreach ($sizes as $size_from_pbcore) {
+              // Parse once... Should be a little more efficient when adding again
+              // later?
+              $size = gmp_init($size_from_pbcore, 10);
+
+              $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
+            }
           }
         }
       }
