@@ -15,15 +15,13 @@ function usc_mirc_reporting_menu() {
     'title' => 'USC MIRC Assets',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('usc_mirc_reporting_form'),
-    // TODO: Determine access...  With XACML, pretty much have to be an admin?
-    'access arguments' => array('access site reports'),
+    'access callback' => 'usc_mirc_reporting_access',
     'file' => 'includes/report.form.inc',
   );
   $items['admin/reports/usc_mirc/csv'] = array(
     'title' => 'USC MIRC CSV Download',
     'page callback' => 'usc_mirc_reporting_build_csv_structure',
     'delivery callback' => 'usc_mirc_reporting_deliver_csv',
-    // TODO: Determine access...  With XACML, pretty much have to be an admin?
     'access callback' => 'usc_mirc_reporting_csv_access',
     'file' => 'includes/report.csv.inc',
     'type' => MENU_CALLBACK,
@@ -53,5 +51,14 @@ function usc_mirc_reporting_theme($existing, $type, $theme, $path) {
  * Access callback for the CSV output callback.
  */
 function usc_mirc_reporting_csv_access() {
-  return user_access('access site reports') && variable_get('usc_mirc_reporting_report', FALSE);
+  return usc_mirc_reporting_access() && variable_get('usc_mirc_reporting_report', FALSE);
+}
+
+/**
+ * Determine whether the current user has access to the reports section.
+ */
+function usc_mirc_reporting_access() {
+  global $user;
+  $allowed_roles = array('Creator', 'Editor', 'Submitter', 'administrator');
+  return count(array_intersect($user->roles, $allowed_roles)) > 0;
 }
