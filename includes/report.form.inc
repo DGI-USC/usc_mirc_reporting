@@ -12,7 +12,8 @@ function usc_mirc_reporting_form($form, &$form_state) {
   form_load_include($form_state, 'inc', 'usc_mirc_reporting', 'includes/report.form');
 
   $report = variable_get('usc_mirc_reporting_report', FALSE);
-  $mutate_report = usc_mirc_reporting_mutate_report_access_callback();
+  $mutate_report = usc_mirc_reporting_access();
+
   if ($report) {
     $form['report'] = array(
       '#type' => 'item',
@@ -77,17 +78,4 @@ function usc_mirc_reporting_form_submit(&$form, &$form_state) {
   elseif ($triggering_element_id == 'edit-delete-report') {
     variable_del('usc_mirc_reporting_report');
   }
-}
-
-/**
- * An access check if the current user has admin permissions.
- *
- * Admin permissions--the ability to always pass XACML restrictions--is
- * required to generate the report.
- */
-function usc_mirc_reporting_mutate_report_access_callback() {
-  global $user;
-  $administrator_roles = array('administrator');
-
-  return $user->uid === 1 || (count(array_intersect($administrator_roles, $user->roles)) > 0);
 }

@@ -181,8 +181,8 @@ EOQO;
             $type_report[$interval][$type]['count']++;
 
             foreach ($sizes as $size_from_pbcore) {
-              // Parse once... Should be a little more efficient when adding again
-              // later?
+              // Parse once... Should be a little more efficient when adding
+              // again later?
               $size = gmp_init($size_from_pbcore, 10);
 
               $type_report[$interval][$type]['size'] = gmp_add($type_report[$interval][$type]['size'], $size);
