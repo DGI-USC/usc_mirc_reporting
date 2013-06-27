@@ -59,6 +59,11 @@ function usc_mirc_reporting_csv_access() {
  */
 function usc_mirc_reporting_access() {
   global $user;
-  $allowed_roles = array('Creator', 'Editor', 'Submitter', 'administrator');
+  $allowed_roles = array(
+    'Creator',
+    'Editor',
+    'Manager',
+    'administrator',
+  );
   return count(array_intersect($user->roles, $allowed_roles)) > 0;
 }
