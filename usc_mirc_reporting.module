@@ -62,7 +62,7 @@ function usc_mirc_reporting_access() {
   $allowed_roles = array(
     'Creator',
     'Editor',
-    'Submitter',
+    'Manager',
     'administrator',
   );
   return count(array_intersect($user->roles, $allowed_roles)) > 0;
