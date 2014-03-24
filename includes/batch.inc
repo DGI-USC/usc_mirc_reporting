@@ -306,12 +306,15 @@ WHERE {
     OPTIONAL {
       ?access <fedora-view:disseminates> ?permissive_policy_datastream .
       ?permissive_policy_datastream <fedora-view:disseminationType> <info:fedora/*/POLICY> .
-      {
-        ?access islandora-rels-ext:isViewableByUser 'anonymous'
+      OPTIONAL {
+        {
+          ?access islandora-rels-ext:isViewableByUser ?user
+        }
+        UNION {
+          ?access islandora-rels-ext:isViewableByRole ?role
+        }
       }
-      UNION {
-        ?access islandora-rels-ext:isViewableByRole 'anonymous user'
-      }
+      FILTER(?user='anonymous' || ?role='anonymous user' || !(bound(?user) && bound(?role)))
     }
     OPTIONAL {
       ?access <fedora-view:disseminates> ?policy_datastream .
